@@ -1,0 +1,6 @@
+onode_modules/
+dist/
+*.js.map
+*.d.ts
+.env
+.DS_Store
