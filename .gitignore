@@ -1,6 +1,13 @@
-onode_modules/
+node_modules/
 dist/
 *.js.map
 *.d.ts
 .env
 .DS_Store
+
+.env.*
+!/.env.example
+
+.claude
+
+*.iml

@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { fetchSpecs } from '../core/specLoader';
-import { parseSpecs } from '../core/specParser';
-import { EndpointDef } from '../models/endpoint';
+import { fetchSpecs } from '../spec/loader';
+import { allEndpoints, parseSpecs } from '../spec/parser';
+import { Endpoint } from '../spec/model';
 import { renderEndpointTable } from '../output/table';
 
 export function registerList(program: Command): void {
@@ -13,14 +13,15 @@ export function registerList(program: Command): void {
     .option('--api <version>', 'Filter by API version (v2 or v3)')
     .option('--method <method>', 'Filter by HTTP method (GET, POST, etc.)')
     .option('--tag <tag>', 'Filter by tag (case-insensitive)')
-    .option('--search <query>', 'Search in path and summary')
+    .option('--search <query>', 'Search in path, summary, operationId')
     .option('--format <format>', 'Output format: table or json', 'table')
     .action(async (opts: { api?: string; method?: string; tag?: string; search?: string; format?: string }) => {
       const spinner = ora('Loading spec...').start();
-      let endpoints: EndpointDef[];
+      let endpoints: Endpoint[];
       try {
         const specs = await fetchSpecs();
-        endpoints = await parseSpecs(specs.v2, specs.v3);
+        const docs = await parseSpecs(specs.v2, specs.v3);
+        endpoints = allEndpoints(docs);
         spinner.stop();
       } catch (err: any) {
         spinner.fail('Failed to load spec');
@@ -28,17 +29,19 @@ export function registerList(program: Command): void {
         process.exit(1);
       }
 
-      // Apply filters
-      if (opts.api) endpoints = endpoints.filter(e => e.apiVersion === opts.api);
-      if (opts.method) endpoints = endpoints.filter(e => e.method === opts.method!.toUpperCase());
+      if (opts.api) endpoints = endpoints.filter((e) => e.apiVersion === opts.api);
+      if (opts.method) endpoints = endpoints.filter((e) => e.method === opts.method!.toUpperCase());
       if (opts.tag) {
         const tag = opts.tag.toLowerCase();
-        endpoints = endpoints.filter(e => e.tags.some(t => t.toLowerCase().includes(tag)));
+        endpoints = endpoints.filter((e) => e.tags.some((t) => t.toLowerCase().includes(tag)));
       }
       if (opts.search) {
         const q = opts.search.toLowerCase();
-        endpoints = endpoints.filter(e =>
-          e.path.toLowerCase().includes(q) || e.summary.toLowerCase().includes(q) || e.operationId.toLowerCase().includes(q)
+        endpoints = endpoints.filter(
+          (e) =>
+            e.path.toLowerCase().includes(q) ||
+            e.summary.toLowerCase().includes(q) ||
+            e.operationId.toLowerCase().includes(q)
         );
       }
 

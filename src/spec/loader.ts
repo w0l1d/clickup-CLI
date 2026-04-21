@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import axios from 'axios';
-import { getSpecCacheTtlHours } from './config';
+import { getSpecCacheTtlHours } from '../store/config';
 
 const CACHE_DIR = path.join(os.homedir(), '.clickup-cli', 'cache');
 const V2_URL = 'https://developer.clickup.com/openapi/clickup-api-v2-reference.json';
@@ -11,7 +11,7 @@ const V2_CACHE = path.join(CACHE_DIR, 'spec-v2.json');
 const V3_CACHE = path.join(CACHE_DIR, 'spec-v3.yaml');
 const META_CACHE = path.join(CACHE_DIR, 'spec-meta.json');
 
-interface SpecMeta {
+export interface SpecMeta {
   v2FetchedAt: string;
   v3FetchedAt: string;
 }
@@ -48,8 +48,8 @@ export async function fetchSpecs(force = false): Promise<{ v2: string; v3: strin
   if (!force && !isStale(meta.v2FetchedAt, ttl) && fs.existsSync(V2_CACHE)) {
     v2Content = fs.readFileSync(V2_CACHE, 'utf8');
   } else {
-    const res = await axios.get(V2_URL, { responseType: 'text', timeout: 15000 });
-    v2Content = res.data;
+    const res = await axios.get(V2_URL, { responseType: 'text', timeout: 15000, transformResponse: [(d) => d] });
+    v2Content = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
     fs.writeFileSync(V2_CACHE, v2Content);
     meta.v2FetchedAt = now;
   }
@@ -58,8 +58,8 @@ export async function fetchSpecs(force = false): Promise<{ v2: string; v3: strin
   if (!force && !isStale(meta.v3FetchedAt, ttl) && fs.existsSync(V3_CACHE)) {
     v3Content = fs.readFileSync(V3_CACHE, 'utf8');
   } else {
-    const res = await axios.get(V3_URL, { responseType: 'text', timeout: 15000 });
-    v3Content = res.data;
+    const res = await axios.get(V3_URL, { responseType: 'text', timeout: 15000, transformResponse: [(d) => d] });
+    v3Content = typeof res.data === 'string' ? res.data : String(res.data);
     fs.writeFileSync(V3_CACHE, v3Content);
     meta.v3FetchedAt = now;
   }

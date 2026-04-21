@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { getLastProbeResults, getLastProbedAt } from '../core/config';
+import { getLastProbeResults, getLastProbedAt } from '../store/config';
 import { renderProbeReport, renderSummaryByTag } from '../output/probeReport';
 
 export function registerReport(program: Command): void {
@@ -19,7 +19,7 @@ export function registerReport(program: Command): void {
       }
 
       if (opts.status) {
-        results = results.filter(r => r.status === opts.status);
+        results = results.filter((r) => r.status === opts.status);
       }
 
       if (opts.format === 'json') {

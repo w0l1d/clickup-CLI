@@ -1,18 +1,16 @@
 import Table from 'cli-table3';
 import chalk from 'chalk';
-import { EndpointDef } from '../models/endpoint';
+import { Endpoint } from '../spec/model';
 
-type ChalkFn = (text: string) => string;
-
-const METHOD_COLORS: Record<string, ChalkFn> = {
-  GET: (t: string) => chalk.green(t),
-  POST: (t: string) => chalk.blue(t),
-  PUT: (t: string) => chalk.yellow(t),
-  PATCH: (t: string) => chalk.cyan(t),
-  DELETE: (t: string) => chalk.red(t),
+const METHOD_COLORS: Record<string, (t: string) => string> = {
+  GET: chalk.green,
+  POST: chalk.blue,
+  PUT: chalk.yellow,
+  PATCH: chalk.cyan,
+  DELETE: chalk.red,
 };
 
-export function renderEndpointTable(endpoints: EndpointDef[]): void {
+export function renderEndpointTable(endpoints: Endpoint[]): void {
   const table = new Table({
     head: [
       chalk.bold('Ver'),
@@ -27,7 +25,7 @@ export function renderEndpointTable(endpoints: EndpointDef[]): void {
   });
 
   for (const ep of endpoints) {
-    const colorFn = METHOD_COLORS[ep.method] || ((t: string) => chalk.white(t));
+    const colorFn = METHOD_COLORS[ep.method] || chalk.white;
     table.push([
       ep.apiVersion,
       colorFn(ep.method),

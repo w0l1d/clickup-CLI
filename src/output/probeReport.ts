@@ -1,12 +1,12 @@
 import Table from 'cli-table3';
 import chalk from 'chalk';
-import { ProbeResult } from '../models/probeResult';
+import { ProbeResult } from '../store/config';
 
-function statusColor(result: ProbeResult): string {
-  const s = result.httpStatus;
-  if (result.status === 'skip') return chalk.dim('SKIP');
-  if (result.status === 'timeout') return chalk.magenta('TIMEOUT');
-  if (result.status === 'rate_limited') return chalk.yellow('429');
+function statusCell(r: ProbeResult): string {
+  const s = r.httpStatus;
+  if (r.status === 'skip') return chalk.dim('SKIP');
+  if (r.status === 'timeout') return chalk.magenta('TIMEOUT');
+  if (r.status === 'rate_limited') return chalk.yellow('429');
   if (!s) return chalk.dim('—');
   if (s >= 200 && s < 300) return chalk.green(String(s));
   if (s >= 400 && s < 500) return chalk.yellow(String(s));
@@ -36,9 +36,8 @@ export function renderProbeReport(results: ProbeResult[], probedAt?: string): vo
     const details = r.status === 'skip'
       ? chalk.dim(r.errorMessage || '')
       : (r.errorMessage || r.responseSnippet || '');
-
     table.push([
-      statusColor(r),
+      statusCell(r),
       r.endpoint.method,
       r.resolvedUrl || r.endpoint.path,
       dur,
@@ -47,7 +46,6 @@ export function renderProbeReport(results: ProbeResult[], probedAt?: string): vo
   }
   console.log(table.toString());
 
-  // Summary
   const ok = results.filter(r => r.status === 'ok').length;
   const err = results.filter(r => r.status === 'error' || r.status === 'timeout').length;
   const skip = results.filter(r => r.status === 'skip').length;
