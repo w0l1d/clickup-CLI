@@ -10,7 +10,7 @@ import { registerReport } from './commands/report';
 export function buildProgram(): Command {
   const program = new Command();
   program
-    .name('clickup-cli')
+    .name('clickup')
     .description('CLI tool to explore and test ClickUp API endpoints')
     .version('0.1.0');
 

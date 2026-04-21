@@ -53,7 +53,7 @@ export function registerCall(program: Command): void {
       verbose?: boolean;
     }) => {
       if (!getApiToken()) {
-        console.error(chalk.red('No token set. Run: clickup-cli auth set <token>'));
+        console.error(chalk.red('No token set. Run: clickup auth set <token>'));
         process.exit(1);
       }
 
@@ -75,7 +75,7 @@ export function registerCall(program: Command): void {
       if (Array.isArray(found)) {
         if (found.length === 0) {
           console.error(chalk.red(`Endpoint not found: ${endpointQuery}`));
-          console.log('Use: clickup-cli list --search <query>');
+          console.log('Use: clickup list --search <query>');
           process.exit(1);
         }
         if (found.length > 1) {

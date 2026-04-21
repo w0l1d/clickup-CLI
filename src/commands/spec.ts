@@ -53,7 +53,7 @@ export function registerSpec(program: Command): void {
         }`
       );
       if (!v2Exists || !v3Exists) {
-        console.log(chalk.yellow('\n  Run: clickup-cli spec fetch'));
+        console.log(chalk.yellow('\n  Run: clickup spec fetch'));
         return;
       }
       try {

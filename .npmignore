@@ -1,0 +1,8 @@
+src/
+tsconfig.json
+.idea/
+.claude/
+clickup-CLI.iml
+*.tsbuildinfo
+*.log
+.DS_Store

@@ -59,7 +59,7 @@ export function registerAuth(program: Command): void {
     .action(async () => {
       const token = getApiToken();
       if (!token) {
-        console.error(chalk.red('No token set. Run: clickup-cli auth set <token>'));
+        console.error(chalk.red('No token set. Run: clickup auth set <token>'));
         process.exit(1);
       }
       const spinner = ora('Validating token...').start();
@@ -95,7 +95,7 @@ export function registerAuth(program: Command): void {
       const token = getApiToken();
       if (!token) {
         console.log(chalk.yellow('No token configured.'));
-        console.log('Run: clickup-cli auth set <token>');
+        console.log('Run: clickup auth set <token>');
         return;
       }
       const masked = token.length > 10

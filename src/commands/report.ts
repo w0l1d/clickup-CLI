@@ -14,7 +14,7 @@ export function registerReport(program: Command): void {
       const probedAt = getLastProbedAt();
 
       if (!results || results.length === 0) {
-        console.log(chalk.yellow('No probe results found. Run: clickup-cli probe'));
+        console.log(chalk.yellow('No probe results found. Run: clickup probe'));
         return;
       }
 

@@ -26,7 +26,7 @@ export function registerProbe(program: Command): void {
       dryRun?: boolean; delay?: string; concurrency?: string; format?: string;
     }) => {
       if (!getApiToken()) {
-        console.error(chalk.red('No token set. Run: clickup-cli auth set <token>'));
+        console.error(chalk.red('No token set. Run: clickup auth set <token>'));
         process.exit(1);
       }
 
