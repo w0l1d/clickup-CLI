@@ -1,5 +1,5 @@
 {
-  "name": "clickup-cli",
+  "name": "@w0l1d/clickup-cli",
   "version": "0.1.0",
   "description": "Spec-driven CLI to explore, test, and probe ClickUp's v2 and v3 REST APIs.",
   "main": "dist/index.js",
