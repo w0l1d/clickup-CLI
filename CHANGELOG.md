@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-04-24
+
+### Added
+- **`auth login`** — guided onboarding that opens the browser to `https://app.clickup.com/settings/apps`, prompts for the token with hidden input, and validates it immediately.
+- **`describe <endpoint>`** — shows full parameter list (required/optional, types, examples), request body schema, and response codes without making any API call. Supports `--format json` for machine-readable output.
+- **Env-var token auth** — `CLICKUP_TOKEN`, `CLICKUP_API_TOKEN`, or `CLICKUP_API_KEY` override the stored config token. `CLICKUP_TOKEN_KIND` overrides the token kind. `auth whoami` reports the active source (`env` vs `config`).
+- **Global `--quiet` / `-q` flag** — suppresses all progress output; only data hits stdout.
+
+### Changed
+- All progress output (spinners, labels, status lines) now goes to **stderr**; only data goes to **stdout**. This makes every command safe to pipe without `2>/dev/null`.
+- **`call --format json`** emits a clean JSON envelope `{ok, status, httpStatus, durationMs, url, error, body}` on stdout with no surrounding chrome.
+- **TTY detection** — spinners and ANSI colors are automatically disabled when stdout is not a TTY, or when `NO_COLOR` or `CI` env vars are set.
+- **Consistent exit codes** for `call`: `0` ok, `2` skip/missing params, `3` 4xx, `4` 5xx, `5` network error/timeout.
+- No-token error now shows the token generation URL, step-by-step instructions, and env-var hint instead of a bare error message.
+
 ## [0.1.0] - 2026-04-21
 
 Initial public release.
