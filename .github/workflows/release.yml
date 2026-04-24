@@ -4,6 +4,16 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      access:
+        description: npm package access level
+        required: false
+        default: restricted
+        type: choice
+        options:
+          - restricted
+          - public
 
 jobs:
   release:
@@ -26,6 +36,6 @@ jobs:
         run: npm run build
 
       - name: Publish to npm
-        run: npm publish --access public
+        run: npm publish --access ${{ github.event.inputs.access || 'restricted' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
