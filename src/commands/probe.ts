@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { fetchSpecs } from '../spec/loader';
 import { allEndpoints, parseSpecs } from '../spec/parser';
 import { Endpoint } from '../spec/model';
@@ -8,6 +7,8 @@ import { resolveWorkspaceContext } from '../runtime/context';
 import { runEndpoint } from '../runtime/runner';
 import { renderProbeReport, renderSummaryByTag } from '../output/probeReport';
 import { getApiToken, ProbeResult, setLastProbeResults, WorkspaceContext } from '../store/config';
+import { spinner, err, note, stdout } from '../output/ui';
+import { printTokenMissingHelp } from '../output/onboarding';
 
 export function registerProbe(program: Command): void {
   program
@@ -26,21 +27,21 @@ export function registerProbe(program: Command): void {
       dryRun?: boolean; delay?: string; concurrency?: string; format?: string;
     }) => {
       if (!getApiToken()) {
-        console.error(chalk.red('No token set. Run: clickup auth set <token>'));
+        printTokenMissingHelp();
         process.exit(1);
       }
 
-      const spinner = ora('Loading spec...').start();
+      const sp = spinner('Loading spec...').start();
       let endpoints: Endpoint[];
-      let docs;
+      let docs: any;
       try {
         const specs = await fetchSpecs();
         docs = await parseSpecs(specs.v2, specs.v3);
         endpoints = allEndpoints(docs);
-        spinner.stop();
-      } catch (err: any) {
-        spinner.fail('Failed to load spec');
-        console.error(chalk.red(err.message));
+        sp.stop();
+      } catch (e: any) {
+        sp.fail('Failed to load spec');
+        err(e.message);
         process.exit(1);
       }
 
@@ -52,32 +53,32 @@ export function registerProbe(program: Command): void {
         endpoints = endpoints.filter((e) => e.tags.some((t) => t.toLowerCase().includes(tag)));
       }
 
-      console.log(chalk.bold(`\n  ${endpoints.length} endpoints to probe\n`));
+      process.stderr.write(chalk.bold(`\n  ${endpoints.length} endpoints to probe\n\n`));
 
       if (opts.dryRun) {
         for (const ep of endpoints) {
-          console.log(`  ${chalk.green(ep.method.padEnd(7))} ${ep.apiVersion.padEnd(3)} ${ep.path}`);
+          process.stderr.write(`  ${chalk.green(ep.method.padEnd(7))} ${ep.apiVersion.padEnd(3)} ${ep.path}\n`);
         }
-        console.log(chalk.dim('\n  Dry run — no requests made\n'));
+        note('\n  Dry run — no requests made\n');
         return;
       }
 
-      const ctxSpinner = ora('Resolving workspace context...').start();
+      const ctxSp = spinner('Resolving workspace context...').start();
       let ctx: WorkspaceContext;
       try {
         ctx = await resolveWorkspaceContext(docs);
-        ctxSpinner.succeed('Workspace context resolved');
-        if (ctx.workspaceId) console.log(chalk.dim(`  workspaceId=${ctx.workspaceId}`));
-      } catch (err: any) {
-        ctxSpinner.fail('Failed to resolve workspace context');
-        console.error(chalk.red(err.message));
+        ctxSp.succeed('Workspace context resolved');
+        if (ctx.workspaceId) note(`  workspaceId=${ctx.workspaceId}`);
+      } catch (e: any) {
+        ctxSp.fail('Failed to resolve workspace context');
+        err(e.message);
         process.exit(1);
       }
 
       const delayMs = parseInt(opts.delay || '600', 10);
       const concurrency = Math.max(1, Math.min(3, parseInt(opts.concurrency || '1', 10)));
       const results: ProbeResult[] = [];
-      const probeSpinner = ora(`Probing 0/${endpoints.length}...`).start();
+      const probeSp = spinner(`Probing 0/${endpoints.length}...`).start();
 
       let done = 0;
       async function worker(slice: Endpoint[]): Promise<void> {
@@ -86,22 +87,21 @@ export function registerProbe(program: Command): void {
           const result = await runEndpoint(ep, ctx, { delayMs: i > 0 ? delayMs : 0 });
           results.push(result);
           done += 1;
-          probeSpinner.text = `Probing ${done}/${endpoints.length}: ${ep.method} ${ep.path}`;
+          probeSp.text = `Probing ${done}/${endpoints.length}: ${ep.method} ${ep.path}`;
         }
       }
 
-      // Round-robin split for concurrency
       const slices: Endpoint[][] = Array.from({ length: concurrency }, () => []);
       endpoints.forEach((ep, i) => slices[i % concurrency].push(ep));
       await Promise.all(slices.map(worker));
 
-      probeSpinner.succeed(`Probed ${results.length} endpoints`);
+      probeSp.succeed(`Probed ${results.length} endpoints`);
 
       const probedAt = new Date().toISOString();
       setLastProbeResults(results, probedAt);
 
       if (opts.format === 'json') {
-        console.log(JSON.stringify(results, null, 2));
+        stdout(JSON.stringify(results, null, 2));
       } else {
         renderProbeReport(results, probedAt);
         renderSummaryByTag(results);

@@ -1,10 +1,10 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { fetchSpecs } from '../spec/loader';
 import { allEndpoints, parseSpecs } from '../spec/parser';
 import { Endpoint } from '../spec/model';
 import { renderEndpointTable } from '../output/table';
+import { spinner, setJsonMode, err, stdout } from '../output/ui';
 
 export function registerList(program: Command): void {
   program
@@ -16,16 +16,18 @@ export function registerList(program: Command): void {
     .option('--search <query>', 'Search in path, summary, operationId')
     .option('--format <format>', 'Output format: table or json', 'table')
     .action(async (opts: { api?: string; method?: string; tag?: string; search?: string; format?: string }) => {
-      const spinner = ora('Loading spec...').start();
+      if (opts.format === 'json') setJsonMode(true);
+
+      const sp = spinner('Loading spec...').start();
       let endpoints: Endpoint[];
       try {
         const specs = await fetchSpecs();
         const docs = await parseSpecs(specs.v2, specs.v3);
         endpoints = allEndpoints(docs);
-        spinner.stop();
-      } catch (err: any) {
-        spinner.fail('Failed to load spec');
-        console.error(chalk.red(err.message));
+        sp.stop();
+      } catch (e: any) {
+        sp.fail('Failed to load spec');
+        err(e.message);
         process.exit(1);
       }
 
@@ -46,12 +48,12 @@ export function registerList(program: Command): void {
       }
 
       if (endpoints.length === 0) {
-        console.log(chalk.yellow('No endpoints match the given filters.'));
+        process.stderr.write(chalk.yellow('No endpoints match the given filters.\n'));
         return;
       }
 
       if (opts.format === 'json') {
-        console.log(JSON.stringify(endpoints, null, 2));
+        stdout(JSON.stringify(endpoints, null, 2));
       } else {
         renderEndpointTable(endpoints);
       }

@@ -62,11 +62,31 @@ const conf = new Conf({
   path: string;
 };
 
-export function getApiToken(): string { return conf.get('apiToken'); }
+export function getApiToken(): string {
+  const env =
+    process.env.CLICKUP_TOKEN ||
+    process.env.CLICKUP_API_TOKEN ||
+    process.env.CLICKUP_API_KEY;
+  if (env && env.trim()) return env.trim();
+  return conf.get('apiToken');
+}
+export function getTokenSource(): 'env' | 'config' | 'none' {
+  const env =
+    process.env.CLICKUP_TOKEN ||
+    process.env.CLICKUP_API_TOKEN ||
+    process.env.CLICKUP_API_KEY;
+  if (env && env.trim()) return 'env';
+  if (conf.get('apiToken')) return 'config';
+  return 'none';
+}
 export function setApiToken(token: string): void { conf.set('apiToken', token); }
 export function clearApiToken(): void { conf.set('apiToken', ''); }
 
-export function getTokenKind(): TokenKind { return conf.get('tokenKind'); }
+export function getTokenKind(): TokenKind {
+  const env = process.env.CLICKUP_TOKEN_KIND;
+  if (env === 'personal' || env === 'bearer' || env === 'auto') return env;
+  return conf.get('tokenKind');
+}
 export function setTokenKind(kind: TokenKind): void { conf.set('tokenKind', kind); }
 
 export function getSpecCacheTtlHours(): number { return conf.get('specCacheTtlHours'); }

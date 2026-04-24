@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import * as fs from 'fs';
 import { fetchSpecs } from '../spec/loader';
 import { allEndpoints, parseSpecs } from '../spec/parser';
@@ -11,6 +10,20 @@ import { fillPathAndQuery } from '../runtime/params';
 import { runEndpoint } from '../runtime/runner';
 import { printJson } from '../output/json';
 import { getApiToken, WorkspaceContext } from '../store/config';
+import { spinner, isJsonMode, setJsonMode, info, err, stdout, note } from '../output/ui';
+import { printTokenMissingHelp } from '../output/onboarding';
+
+// 0=ok, 2=skip/missing-params, 3=4xx, 4=5xx, 5=network/timeout
+function exitCodeFor(status: string, httpStatus?: number): number {
+  if (status === 'ok') return 0;
+  if (status === 'skip') return 2;
+  if (status === 'timeout') return 5;
+  if (httpStatus != null) {
+    if (httpStatus >= 400 && httpStatus < 500) return 3;
+    if (httpStatus >= 500) return 4;
+  }
+  return 5;
+}
 
 function findEndpoint(endpoints: Endpoint[], query: string): Endpoint | Endpoint[] {
   const exact = endpoints.find((e) => e.operationId === query);
@@ -52,51 +65,53 @@ export function registerCall(program: Command): void {
       format?: string;
       verbose?: boolean;
     }) => {
+      if (opts.format === 'json') setJsonMode(true);
+
       if (!getApiToken()) {
-        console.error(chalk.red('No token set. Run: clickup auth set <token>'));
+        printTokenMissingHelp();
         process.exit(1);
       }
 
-      const spinner = ora('Loading spec...').start();
+      const sp = spinner('Loading spec...').start();
       let endpoints: Endpoint[];
-      let docs;
+      let docs: any;
       try {
         const specs = await fetchSpecs();
         docs = await parseSpecs(specs.v2, specs.v3);
         endpoints = allEndpoints(docs);
-        spinner.stop();
-      } catch (err: any) {
-        spinner.fail('Failed to load spec');
-        console.error(chalk.red(err.message));
+        sp.stop();
+      } catch (e: any) {
+        sp.fail('Failed to load spec');
+        err(e.message);
         process.exit(1);
       }
 
       const found = findEndpoint(endpoints, endpointQuery);
       if (Array.isArray(found)) {
         if (found.length === 0) {
-          console.error(chalk.red(`Endpoint not found: ${endpointQuery}`));
-          console.log('Use: clickup list --search <query>');
+          err(`Endpoint not found: ${endpointQuery}`);
+          note('Use: clickup list --search <query>');
           process.exit(1);
         }
         if (found.length > 1) {
-          console.log(chalk.yellow(`Multiple matches for "${endpointQuery}":\n`));
+          process.stderr.write(chalk.yellow(`\nMultiple matches for "${endpointQuery}":\n\n`));
           for (const m of found) {
-            console.log(`  ${chalk.green(m.method.padEnd(7))} ${m.operationId}  ${chalk.dim(m.path)}`);
+            process.stderr.write(`  ${chalk.green(m.method.padEnd(7))} ${m.operationId}  ${chalk.dim(m.path)}\n`);
           }
-          console.log('\nUse the exact operationId.');
+          process.stderr.write('\nUse the exact operationId.\n');
           process.exit(1);
         }
       }
       const ep = Array.isArray(found) ? found[0] : found;
 
-      console.log(`\n  ${chalk.bold('Calling:')} ${chalk.green(ep.method)} ${ep.path}`);
-      console.log(`  ${chalk.dim(`Operation: ${ep.operationId}  (${ep.apiVersion})`)}\n`);
+      info(`\n  ${chalk.bold('Calling:')} ${chalk.green(ep.method)} ${ep.path}`);
+      note(`  Operation: ${ep.operationId}  (${ep.apiVersion})\n`);
 
       const overrides: Record<string, string> = {};
       for (const kv of opts.param || []) {
         const idx = kv.indexOf('=');
         if (idx < 0) {
-          console.error(chalk.red(`Invalid --param: ${kv} (expected key=value)`));
+          err(`Invalid --param: ${kv} (expected key=value)`);
           process.exit(1);
         }
         overrides[kv.slice(0, idx)] = kv.slice(idx + 1);
@@ -107,8 +122,8 @@ export function registerCall(program: Command): void {
       if (opts.bodyFile) {
         try {
           body = JSON.parse(fs.readFileSync(opts.bodyFile, 'utf8'));
-        } catch (err: any) {
-          console.error(chalk.red(`Failed to read --body-file: ${err.message}`));
+        } catch (e: any) {
+          err(`Failed to read --body-file: ${e.message}`);
           process.exit(1);
         }
       }
@@ -116,71 +131,77 @@ export function registerCall(program: Command): void {
         try {
           body = JSON.parse(opts.body);
         } catch {
-          console.error(chalk.red('Invalid JSON in --body'));
+          err('Invalid JSON in --body');
           process.exit(1);
         }
       }
-      if (opts.scaffoldBody) {
-        const seed = seedBody(ep);
-        body = mergeBody(seed, body);
-      }
+      if (opts.scaffoldBody) body = mergeBody(seedBody(ep), body);
 
       let ctx: WorkspaceContext = {};
       if (opts.context !== false) {
-        const ctxSpinner = ora('Resolving workspace context...').start();
+        const ctxSp = spinner('Resolving workspace context...').start();
         try {
           ctx = await resolveWorkspaceContext(docs);
-          ctxSpinner.stop();
-        } catch (err: any) {
-          ctxSpinner.fail('Failed to resolve workspace context');
-          console.error(chalk.red(err.message));
+          ctxSp.stop();
+        } catch (e: any) {
+          ctxSp.fail('Failed to resolve workspace context');
+          err(e.message);
           process.exit(1);
         }
       }
 
       if (opts.verbose) {
         const filled = fillPathAndQuery(ep, ctx, overrides);
-        console.log(chalk.bold('  Request:'));
-        console.log(`    ${ep.method} ${ep.serverUrl}${filled.url}`);
-        if (Object.keys(filled.query).length) {
-          console.log(`    query: ${JSON.stringify(filled.query)}`);
-        }
-        if (Object.keys(filled.headers).length) {
-          console.log(`    headers: ${JSON.stringify(filled.headers)}`);
-        }
-        if (body !== undefined) {
-          console.log(`    body: ${JSON.stringify(body)}`);
-        }
-        console.log();
+        process.stderr.write(chalk.bold('  Request:\n'));
+        process.stderr.write(`    ${ep.method} ${ep.serverUrl}${filled.url}\n`);
+        if (Object.keys(filled.query).length) process.stderr.write(`    query: ${JSON.stringify(filled.query)}\n`);
+        if (Object.keys(filled.headers).length) process.stderr.write(`    headers: ${JSON.stringify(filled.headers)}\n`);
+        if (body !== undefined) process.stderr.write(`    body: ${JSON.stringify(body)}\n`);
+        process.stderr.write('\n');
       }
 
-      const callSpinner = ora('Calling endpoint...').start();
+      const callSp = spinner('Calling endpoint...').start();
       const result = await runEndpoint(ep, ctx, { overrides, body });
-      callSpinner.stop();
+      callSp.stop();
 
-      const statusStr = result.httpStatus != null ? String(result.httpStatus) : result.status;
-      const statusColor =
-        result.status === 'ok' ? chalk.green : result.status === 'skip' ? chalk.dim : chalk.red;
-      console.log(`  ${chalk.bold('Status:')}   ${statusColor(statusStr)}`);
-      if (result.durationMs != null) console.log(`  ${chalk.bold('Duration:')} ${result.durationMs}ms`);
-      if (result.resolvedUrl) console.log(`  ${chalk.bold('URL:')}      ${ep.serverUrl}${result.resolvedUrl}\n`);
+      const exitCode = exitCodeFor(result.status, result.httpStatus);
 
-      if (result.errorMessage) {
-        console.error(chalk.red(`  ${result.errorMessage}`));
+      if (isJsonMode()) {
+        let parsedBody: unknown = null;
+        if (result.responseSnippet) {
+          try { parsedBody = JSON.parse(result.responseSnippet); } catch { parsedBody = result.responseSnippet; }
+        }
+        stdout(JSON.stringify({
+          ok: result.status === 'ok',
+          status: result.status,
+          httpStatus: result.httpStatus ?? null,
+          durationMs: result.durationMs ?? null,
+          url: result.resolvedUrl ? `${ep.serverUrl}${result.resolvedUrl}` : null,
+          error: result.errorMessage ?? null,
+          body: parsedBody,
+        }));
+        process.exit(exitCode);
       }
+
+      const statusColor =
+        result.status === 'ok' ? chalk.green :
+        result.status === 'skip' ? chalk.dim :
+        chalk.red;
+      const statusStr = result.httpStatus != null ? String(result.httpStatus) : result.status;
+      process.stderr.write(`  ${chalk.bold('Status:')}   ${statusColor(statusStr)}\n`);
+      if (result.durationMs != null) process.stderr.write(`  ${chalk.bold('Duration:')} ${result.durationMs}ms\n`);
+      if (result.resolvedUrl) process.stderr.write(`  ${chalk.bold('URL:')}      ${ep.serverUrl}${result.resolvedUrl}\n\n`);
+      if (result.errorMessage) err(`  ${result.errorMessage}`);
 
       if (result.responseSnippet) {
         try {
           const parsed = JSON.parse(result.responseSnippet);
-          if (opts.format === 'pretty') printJson(parsed);
-          else console.log(JSON.stringify(parsed, null, 2));
+          printJson(parsed);
         } catch {
-          console.log(result.responseSnippet);
+          stdout(result.responseSnippet);
         }
       }
 
-      if (result.status === 'error' || result.status === 'timeout') {
-        process.exit(1);
-      }
+      process.exit(exitCode);
     });
 }
