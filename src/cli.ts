@@ -14,7 +14,7 @@ export function buildProgram(): Command {
   program
     .name('clickup')
     .description('CLI tool to explore and test ClickUp API endpoints')
-    .version('0.1.0')
+    .version(require('../package.json').version)
     .option('-q, --quiet', 'Suppress progress output (data only on stdout)');
 
   // Apply --quiet before any command runs
